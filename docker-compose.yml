@@ -6,13 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     command: >
-      sh -c "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      sh -c "./scripts/docker-entrypoint.sh"
     volumes:
       - .:/app
     ports:
       - "8000:8000"
     env_file:
       - .env
+    environment:
+      - AUTO_MIGRATE=true
     depends_on:
       - postgres
     networks:
@@ -35,6 +37,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # マイグレーション専用サービス
+  migration:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "alembic upgrade head && python -m app.db.init_db"
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app-network
+    profiles: ["tools"]
 
 networks:
   app-network:

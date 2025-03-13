@@ -30,6 +30,10 @@ COPY . .
 # ポート公開
 EXPOSE 8000
 
+# 初期化スクリプトなど追加ファイルの権限設定
+RUN mkdir -p /app/scripts && \
+    chmod +x /app/scripts/*.sh 2>/dev/null || true
+
 # コンテナ起動コマンド
 # 本番環境用（Gunicorn）
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
