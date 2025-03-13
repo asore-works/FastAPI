@@ -1,9 +1,13 @@
 from sqlalchemy import String, Text, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from datetime import datetime
 
-from app.db.base import Base
+from app.db.base_class import Base
+
+# 型ヒントのための条件付きインポート
+if TYPE_CHECKING:
+    from app.models.user import User
 
 
 class Item(Base):
@@ -39,10 +43,14 @@ class Item(Base):
     )
     
     # リレーションシップ
-    owner: Mapped["User"] = relationship(
-        "User", 
-        back_populates="items",
-    )
+    # SQLAlchemy 2.0では、ここで文字列参照を使用するとモジュールのロード順序の問題が解決されます
+    if TYPE_CHECKING:
+        owner: Mapped["User"]
+    else:
+        owner = relationship(
+            "User", 
+            back_populates="items",
+        )
 
     def __repr__(self) -> str:
         return f"<Item {self.title}>"

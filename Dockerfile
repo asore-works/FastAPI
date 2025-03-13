@@ -1,10 +1,11 @@
-# Python 13をベースイメージとして使用
-FROM python:13-slim
+# Python 3.13をベースイメージとして使用
+FROM python:3.13-slim
 
 # 環境変数設定
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
+    PYTHONPATH=/app \
     POETRY_VERSION=1.6.1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_VIRTUALENVS_IN_PROJECT=false \

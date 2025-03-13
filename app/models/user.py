@@ -1,9 +1,13 @@
 from sqlalchemy import Boolean, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime
 
-from app.db.base import Base
+from app.db.base_class import Base
+
+# 型ヒントのための条件付きインポート
+if TYPE_CHECKING:
+    from app.models.item import Item
 
 
 class User(Base):
@@ -36,11 +40,15 @@ class User(Base):
     )
     
     # リレーションシップ - 遅延評価のために文字列型参照を使用
-    items: Mapped[List["Item"]] = relationship(
-        "Item", 
-        back_populates="owner",
-        cascade="all, delete-orphan",
-    )
+    # SQLAlchemy 2.0では、ここで文字列参照を使用するとモジュールのロード順序の問題が解決されます
+    if TYPE_CHECKING:
+        items: Mapped[List["Item"]]
+    else:
+        items = relationship(
+            "Item", 
+            back_populates="owner",
+            cascade="all, delete-orphan",
+        )
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

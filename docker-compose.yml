@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile
     command: >
-      sh -c "./scripts/docker-entrypoint.sh"
+      sh -c "chmod +x /app/scripts/*.sh && ./scripts/docker-entrypoint.sh"
     volumes:
       - .:/app
     ports:
@@ -15,6 +13,7 @@ services:
       - .env
     environment:
       - AUTO_MIGRATE=true
+      - PYTHONPATH=/app
     depends_on:
       - postgres
     networks:

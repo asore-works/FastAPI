@@ -1,26 +1,30 @@
-touch app/main.py
-touch app/api/api.py
-touch app/api/dependencies/__init__.py
-touch app/api/routes/__init__.py
-touch app/core/config.py
-touch app/core/security.py
-touch app/core/exceptions.py
-touch app/db/base.py
-touch app/db/session.py
-touch app/db/init_db.py
-touch app/models/__init__.py
-touch app/models/user.py
-touch app/models/item.py
-touch app/schemas/__init__.py
-touch app/schemas/user.py
-touch app/schemas/item.py
-touch app/services/__init__.py
-touch app/services/user.py
-touch app/services/item.py
-touch app/tests/conftest.py
-touch app/utils/__init__.py
-touch .env.example
-touch Dockerfile
-touch docker-compose.yml
-touch requirements.txt
-touch pyproject.toml
+# APIフレームワークとサーバー
+fastapi
+uvicorn[standard]
+
+# データバリデーションとシリアライゼーション
+pydantic
+pydantic-settings
+email-validator
+
+# データベース関連
+sqlalchemy
+alembic
+asyncpg  # PostgreSQL非同期ドライバー
+psycopg2-binary  # PostgreSQLドライバー（同期版、Alembicに必要）
+
+# 認証と暗号化
+python-jose[cryptography]  # JWT
+passlib[bcrypt]  # パスワードハッシュ化
+python-multipart  # フォームデータ処理
+
+# 環境変数と設定
+python-dotenv
+
+# テスト
+pytest
+pytest-asyncio
+httpx
+
+# ユーティリティ
+tenacity  # リトライロジック

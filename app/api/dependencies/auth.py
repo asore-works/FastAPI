@@ -1,12 +1,13 @@
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Security
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ForbiddenException
 from app.core.security import decode_token
+from app.core.auth import oauth2_scheme
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.user import TokenPayload
@@ -15,7 +16,7 @@ from app.services.user import UserService
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
-    token: str = Depends(lambda: ""),  # OAuth2PasswordBearerから取得するように後で修正
+    token: str = Security(oauth2_scheme),
 ) -> User:
     """
     現在のユーザーを取得する依存関係

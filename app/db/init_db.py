@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Dict, Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -34,28 +35,38 @@ async def create_first_superuser(db: AsyncSession) -> None:
         )
         return
 
-    # 既存の管理者ユーザーを検索
-    result = await db.execute("SELECT * FROM users WHERE email = :email", {"email": first_superuser_email})
-    user = result.fetchone()
+    try:
+        # 既存の管理者ユーザーを検索（SQLAlchemy 2.0の方法で）
+        # SQLAlchemy 2.0では文字列SQLをtext()でラップする必要があります
+        result = await db.execute(
+            text("SELECT id FROM users WHERE email = :email"),
+            {"email": first_superuser_email}
+        )
+        user_id = result.scalar_one_or_none()
 
-    # 既に存在する場合はスキップ
-    if user:
-        logger.info(f"管理者アカウント {first_superuser_email} は既に存在します。スキップします。")
-        return
+        # 既に存在する場合はスキップ
+        if user_id:
+            logger.info(f"管理者アカウント {first_superuser_email} は既に存在します。スキップします。")
+            return
 
-    # 管理者ユーザーオブジェクトを作成
-    superuser_obj = User(
-        email=first_superuser_email,
-        hashed_password=get_password_hash(first_superuser_password),
-        full_name="Initial Admin User",
-        is_superuser=True,
-        is_active=True,
-    )
+        # 管理者ユーザーオブジェクトを作成
+        logger.info(f"管理者アカウント {first_superuser_email} を作成しています...")
+        superuser_obj = User(
+            email=first_superuser_email,
+            hashed_password=get_password_hash(first_superuser_password),
+            full_name="Initial Admin User",
+            is_superuser=True,
+            is_active=True,
+        )
 
-    # データベースに追加
-    db.add(superuser_obj)
-    await db.commit()
-    logger.info(f"管理者アカウント {first_superuser_email} を作成しました")
+        # データベースに追加
+        db.add(superuser_obj)
+        await db.commit()
+        logger.info(f"管理者アカウント {first_superuser_email} を作成しました")
+    except Exception as e:
+        logger.error(f"管理者アカウント作成中にエラーが発生: {e}")
+        await db.rollback()
+        raise
 
 
 async def init_db() -> None:
@@ -67,6 +78,7 @@ async def init_db() -> None:
     """
     try:
         # データベース接続
+        logger.info("データベース接続を確立中...")
         async with AsyncSessionLocal() as db:
             # 初期管理者ユーザーの作成
             await create_first_superuser(db)
