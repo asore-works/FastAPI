@@ -125,16 +125,18 @@ class UserService:
         Returns:
             User: 更新されたユーザー
         """
+        # 更新データを準備 (オリジナルのオブジェクトを変更しないようにコピー)
         if isinstance(obj_in, dict):
-            update_data = obj_in
+            update_data = obj_in.copy()
         else:
             update_data = obj_in.model_dump(exclude_unset=True)
             
-        # パスワードが含まれる場合はハッシュ化
-        if "password" in update_data:
-            update_data["hashed_password"] = get_password_hash(update_data.pop("password"))
+        # パスワードが含まれる場合はハッシュ化して更新
+        if "password" in update_data and update_data["password"]:
+            hashed_password = get_password_hash(update_data.pop("password"))
+            update_data["hashed_password"] = hashed_password
             
-        # SQLAlchemy 2.0のUPDATE構文
+        # SQLAlchemy 2.0のUPDATE構文 (明示的にreturningを使用)
         stmt = (
             update(User)
             .where(User.id == db_obj.id)
@@ -142,9 +144,17 @@ class UserService:
             .returning(User)
         )
         
-        result = await db.execute(stmt)
-        await db.commit()
-        return result.scalar_one()
+        try:
+            # 更新を実行して結果を取得
+            result = await db.execute(stmt)
+            await db.commit()
+            
+            # 更新されたユーザーをデータベースから取得
+            updated_user = await db.get(User, db_obj.id)
+            return updated_user
+        except Exception as e:
+            await db.rollback()
+            raise e
     
     @staticmethod
     async def delete(db: AsyncSession, user_id: int) -> User:

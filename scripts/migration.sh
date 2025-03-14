@@ -40,7 +40,9 @@ shift
 # 環境変数読み込み
 if [ -f .env ]; then
     echo -e "${GREEN}環境変数を.envから読み込んでいます...${NC}"
-    export $(grep -v '^#' .env | xargs)
+    set -a
+    . ./.env
+    set +a
 fi
 
 # コマンド実行関数

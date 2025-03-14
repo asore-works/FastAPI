@@ -1,0 +1,49 @@
+services:
+  api-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "chmod +x /app/scripts/*.sh && python3 -m pytest app/tests -v"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - SECRET_KEY=test_secret_key_for_testing_only
+      - POSTGRES_SERVER=postgres-test
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=test_db
+      - POSTGRES_PORT=5432
+      - FIRST_SUPERUSER_EMAIL=admin@example.com
+      - FIRST_SUPERUSER_PASSWORD=password123
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - test-network
+
+  postgres-test:
+    image: postgres:17
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=test_db
+    ports:
+      - "5433:5432"  # ホストの5433ポートにマッピング（本番用DBと競合しないように）
+    networks:
+      - test-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d test_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  test-network:
+    driver: bridge
+
+volumes:
+  postgres_test_data:

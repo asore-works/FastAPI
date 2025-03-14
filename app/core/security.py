@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 
 from jose import jwt
@@ -23,9 +23,9 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
         str: 生成されたJWTトークン
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     
     # トークンのペイロード
     to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
@@ -47,9 +47,9 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: Optional[timed
         str: 生成されたJWTトークン
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     
     # リフレッシュトークン用のペイロード
     to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}

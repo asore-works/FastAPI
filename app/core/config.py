@@ -1,5 +1,5 @@
 from typing import List, Optional, Union, Dict, Any
-from pydantic import AnyHttpUrl, validator, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -91,7 +91,6 @@ class Settings(BaseSettings):
         db = info.data.get("POSTGRES_DB")
         
         return f"postgresql://{user}:{password}@{server}:{port}/{db}"
-
 
 # 設定インスタンスを作成
 settings = Settings()
