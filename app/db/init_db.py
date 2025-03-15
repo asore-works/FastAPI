@@ -1,97 +1,90 @@
+"""
+ファイル: app/db/init_db.py
+説明: システムロールおよび初期管理者（スーパーユーザー）の作成など、データベースの初期化を行います。
+      マイグレーション後の初期データ投入用スクリプトです。
+"""
+
 import asyncio
 import logging
-from typing import Dict, Any
 
-from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.session import AsyncSessionLocal
-from app.models.user import User
-from app.core.security import get_password_hash
+from app.services.role import RoleService
+from app.services.user import UserService
+from app.schemas.user import UserCreate
 
-
-# ロガー設定
+# ログ設定
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+async def initialize_roles(db: AsyncSession) -> None:
+    """
+    システムロールをデータベースに初期化します。
+    """
+    logger.info("システムロールの初期化を開始...")
+    await RoleService.initialize_system_roles(db)
+    logger.info("システムロールの初期化が完了しました。")
+
+
 async def create_first_superuser(db: AsyncSession) -> None:
     """
-    初期管理者ユーザーを作成
+    環境変数で設定された初期管理者（スーパーユーザー）アカウントを作成します。
     
-    環境変数から設定された管理者アカウントを作成し、データベースに挿入
-    既に存在する場合は作成をスキップ
+    すでにアカウントが存在する場合や、設定がない場合は作成をスキップします。
     """
-    # 環境変数から初期管理者情報を取得
-    first_superuser_email = settings.FIRST_SUPERUSER_EMAIL
-    first_superuser_password = settings.FIRST_SUPERUSER_PASSWORD
+    email = settings.FIRST_SUPERUSER_EMAIL
+    password = settings.FIRST_SUPERUSER_PASSWORD
 
-    # 管理者アカウントが設定されていない場合はスキップ
-    if not first_superuser_email or not first_superuser_password:
+    if not email or not password:
         logger.warning(
             "初期管理者アカウントの設定がありません。"
-            "FIRST_SUPERUSER_EMAILとFIRST_SUPERUSER_PASSWORDを設定してください。"
+            "環境変数FIRST_SUPERUSER_EMAILとFIRST_SUPERUSER_PASSWORDを設定してください。"
         )
         return
 
     try:
-        # 既存の管理者ユーザーを検索（SQLAlchemy 2.0の方法で）
-        # SQLAlchemy 2.0では文字列SQLをtext()でラップする必要があります
-        result = await db.execute(
-            text("SELECT id FROM users WHERE email = :email"),
-            {"email": first_superuser_email}
-        )
-        user_id = result.scalar_one_or_none()
-
-        # 既に存在する場合はスキップ
-        if user_id:
-            logger.info(f"管理者アカウント {first_superuser_email} は既に存在します。スキップします。")
+        existing_user = await UserService.get_by_email(db, email)
+        if existing_user:
+            logger.info(f"管理者アカウント '{email}' は既に存在します。作成をスキップします。")
             return
 
-        # 管理者ユーザーオブジェクトを作成
-        logger.info(f"管理者アカウント {first_superuser_email} を作成しています...")
-        superuser_obj = User(
-            email=first_superuser_email,
-            hashed_password=get_password_hash(first_superuser_password),
+        superuser_role = await RoleService.get_by_name(db, "スーパーユーザー")
+        role_id = superuser_role.id if superuser_role else None
+
+        user_in = UserCreate(
+            email=email,
+            password=password,
             full_name="Initial Admin User",
             is_superuser=True,
-            is_active=True,
+            role_id=role_id
         )
 
-        # データベースに追加
-        db.add(superuser_obj)
-        await db.commit()
-        logger.info(f"管理者アカウント {first_superuser_email} を作成しました")
-    except Exception as e:
-        logger.error(f"管理者アカウント作成中にエラーが発生: {e}")
-        await db.rollback()
+        logger.info(f"管理者アカウント '{email}' を作成中...")
+        await UserService.create(db, user_in)
+        logger.info(f"管理者アカウント '{email}' の作成に成功しました。")
+    except Exception as error:
+        logger.error(f"管理者アカウント作成中にエラーが発生しました: {error}")
         raise
 
 
 async def init_db() -> None:
     """
-    データベース初期化メイン関数
-    
-    マイグレーション後に初期データを設定
-    実際のマイグレーションはAlembicコマンドラインで実行することを推奨
+    データベースの初期化メイン関数
     """
     try:
-        # データベース接続
         logger.info("データベース接続を確立中...")
         async with AsyncSessionLocal() as db:
-            # 初期管理者ユーザーの作成
+            await initialize_roles(db)
             await create_first_superuser(db)
-            
-            # 他の初期データ設定もここに追加可能
-            
-            logger.info("データベース初期化が完了しました")
-    except Exception as e:
-        logger.error(f"データベース初期化中にエラーが発生しました: {e}")
+            logger.info("データベースの初期化が完了しました。")
+    except Exception as error:
+        logger.error(f"データベース初期化中にエラーが発生しました: {error}")
         raise
 
 
-# スクリプトとして実行した場合
 if __name__ == "__main__":
-    logger.info("データベース初期化を開始します")
+    logger.info("データベース初期化を開始します...")
     asyncio.run(init_db())

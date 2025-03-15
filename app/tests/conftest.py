@@ -83,14 +83,17 @@ async def db_session(setup_database) -> AsyncGenerator[AsyncSession, None]:
 async def superuser(db_session: AsyncSession) -> User:
     user_in = UserCreate(
         email="admin@example.com",
+        username="admin",  # usernameフィールドを追加
         password="password123",
-        full_name="Test Admin",
+        last_name="Admin",  # 姓を追加
+        first_name="Super",  # 名を追加
         is_superuser=True,
     )
     user = await UserService.get_by_email(db_session, user_in.email)
     if not user:
         user = await UserService.create(db_session, obj_in=user_in)
     return user
+
 
 # スーパーユーザーのアクセストークンヘッダー生成フィクスチャ
 @pytest_asyncio.fixture
@@ -104,8 +107,10 @@ async def superuser_token_headers(superuser: User) -> Dict[str, str]:
 async def normal_user(db_session: AsyncSession) -> User:
     user_in = UserCreate(
         email="user@example.com",
+        username="testuser",  # usernameフィールドを追加
         password="password123",
-        full_name="Test User",
+        last_name="Test",  # 姓を追加
+        first_name="User",  # 名を追加
         is_superuser=False,
     )
     user = await UserService.get_by_email(db_session, user_in.email)

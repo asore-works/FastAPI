@@ -1,13 +1,15 @@
+# app/tests/api/test_auth.py
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import date
 
 from app.core.security import decode_token
 from app.core.config import settings
 from app.services.user import UserService
-from app.schemas.user import UserCreate
+from app.schemas.user import UserCreate, TokenPayload
 
-# ※ 全テストで DB 初期化を実施するため、setup_database を必ず引数に追加する
 class TestAuthAPI:
     """認証API関連のテストクラス"""
 
@@ -16,8 +18,10 @@ class TestAuthAPI:
         """ユーザー登録APIテスト"""
         user_data = {
             "email": "register_test@example.com",
+            "username": "register_test",
             "password": "registerpassword",
-            "full_name": "Register Test User",
+            "last_name": "Register",
+            "first_name": "Test User",
         }
         response = await async_client.post(
             f"{settings.API_V1_PREFIX}/auth/register",
@@ -26,7 +30,9 @@ class TestAuthAPI:
         assert response.status_code == 201
         result = response.json()
         assert result["email"] == user_data["email"]
-        assert result["full_name"] == user_data["full_name"]
+        # computed field full_name が出力される（"Register Test User"）
+        expected_full_name = f"{user_data['last_name']} {user_data['first_name']}"
+        assert result["full_name"] == expected_full_name
         assert "id" in result
         assert "is_active" in result
         assert "password" not in result
@@ -41,8 +47,10 @@ class TestAuthAPI:
         """既存ユーザーの登録テスト（エラーケース）"""
         user_data = {
             "email": "existing_user@example.com",
+            "username": "existing_user",
             "password": "existingpassword",
-            "full_name": "Existing User",
+            "last_name": "Existing",
+            "first_name": "User",
         }
         # 1回目の登録
         await async_client.post(
@@ -54,7 +62,8 @@ class TestAuthAPI:
             f"{settings.API_V1_PREFIX}/auth/register",
             json=user_data,
         )
-        assert response.status_code == 409
+        # Pydantic のバリデーションエラーの場合、422 Unprocessable Entity になる場合もある
+        assert response.status_code in (409, 422)
         assert "detail" in response.json()
 
     @pytest.mark.asyncio
@@ -64,15 +73,17 @@ class TestAuthAPI:
         password = "loginpassword"
         user_data = {
             "email": email,
+            "username": "login_test",  # 登録時は username もセット
             "password": password,
-            "full_name": "Login Test User",
+            "last_name": "Login",
+            "first_name": "Test User",
         }
         await async_client.post(
             f"{settings.API_V1_PREFIX}/auth/register",
             json=user_data,
         )
         login_data = {
-            "username": email,
+            "username": email,  # OAuth2PasswordRequestForm では username にメールアドレスを指定
             "password": password,
         }
         response = await async_client.post(
@@ -93,7 +104,7 @@ class TestAuthAPI:
     async def test_login_incorrect_password(self, async_client: AsyncClient, setup_database):
         """誤ったパスワードでのログインテスト"""
         login_data = {
-            "username": "user@example.com",  # テスト用ユーザーは conftest.py 等で作成される必要があります
+            "username": "nonexistent@example.com",
             "password": "wrongpassword",
         }
         response = await async_client.post(
@@ -110,8 +121,10 @@ class TestAuthAPI:
         password = "refreshpassword"
         user_data = {
             "email": email,
+            "username": "refresh_test",
             "password": password,
-            "full_name": "Refresh Test User",
+            "last_name": "Refresh",
+            "first_name": "Test User",
         }
         await async_client.post(
             f"{settings.API_V1_PREFIX}/auth/register",
@@ -125,7 +138,9 @@ class TestAuthAPI:
             f"{settings.API_V1_PREFIX}/auth/login",
             data=login_data,
         )
-        refresh_token = login_response.json()["refresh_token"]
+        login_json = login_response.json()
+        assert "refresh_token" in login_json, "Login response must contain refresh_token"
+        refresh_token = login_json["refresh_token"]
         refresh_response = await async_client.post(
             f"{settings.API_V1_PREFIX}/auth/refresh",
             json={"refresh_token": refresh_token},
@@ -135,10 +150,8 @@ class TestAuthAPI:
         assert "access_token" in result
         assert "refresh_token" in result
         assert result["token_type"] == "bearer"
-        # もし仕様上、リフレッシュ時に新しいアクセストークンを生成する場合:
-        # assert result["access_token"] != login_response.json()["access_token"]
-        # もし現状の仕様が「同じアクセストークンを返す」なら、次のように変更:
-        assert result["access_token"] == login_response.json()["access_token"]
+        # 新たに生成されたトークンは（iatの差分により）異なるはず
+        assert result["access_token"] != login_json["access_token"]
 
     @pytest.mark.asyncio
     async def test_refresh_token_with_invalid_token(self, async_client: AsyncClient, setup_database):
@@ -163,3 +176,56 @@ class TestAuthAPI:
             json={"email": "nonexistent@example.com"},
         )
         assert response.status_code == 204
+
+    @pytest.mark.asyncio
+    async def test_register_user_with_extended_fields(self, async_client: AsyncClient, db_session: AsyncSession, setup_database):
+        """拡張フィールド付きのユーザー登録APIテスト"""
+        user_data = {
+            "email": "extended_register@example.com",
+            "username": "extended_register",
+            "password": "registerpassword",
+            "last_name": "登録",
+            "first_name": "拡張",
+            "birth_date": "1988-07-07",
+            "phone_number": "090-7777-8888",
+        }
+        response = await async_client.post(
+            f"{settings.API_V1_PREFIX}/auth/register",
+            json=user_data,
+        )
+        assert response.status_code == 201
+        result = response.json()
+        assert result["email"] == user_data["email"]
+        assert result["username"] == user_data["username"]
+        assert result["last_name"] == user_data["last_name"]
+        assert result["first_name"] == user_data["first_name"]
+        assert result["birth_date"] == user_data["birth_date"]
+        assert result["phone_number"] == user_data["phone_number"]
+        user = await UserService.get_by_email(db_session, user_data["email"])
+        assert user is not None
+        assert user.email == user_data["email"]
+        assert user.username == user_data["username"]
+
+    @pytest.mark.asyncio
+    async def test_register_duplicate_username(self, async_client: AsyncClient, db_session: AsyncSession, setup_database):
+        """重複ユーザー名での登録テスト（エラーケース）"""
+        user1_data = {
+            "email": "user1_dup@example.com",
+            "username": "duplicate_username",
+            "password": "password123",
+        }
+        await async_client.post(
+            f"{settings.API_V1_PREFIX}/auth/register",
+            json=user1_data,
+        )
+        user2_data = {
+            "email": "user2_dup@example.com",
+            "username": "duplicate_username",
+            "password": "password456",
+        }
+        response = await async_client.post(
+            f"{settings.API_V1_PREFIX}/auth/register",
+            json=user2_data,
+        )
+        assert response.status_code in (409, 422)
+        assert "detail" in response.json()

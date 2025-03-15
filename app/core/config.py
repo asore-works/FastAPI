@@ -1,3 +1,5 @@
+# app/core/config.py
+
 from typing import List, Optional, Union, Dict, Any
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict

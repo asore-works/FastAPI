@@ -1,31 +1,41 @@
-from typing import Any
+"""
+ファイル: app/db/base_class.py
+説明: SQLAlchemy 2.0のDeclarativeBaseを利用したベースクラス。
+      自動テーブル名生成とインスタンスを辞書に変換するユーティリティメソッドを提供します。
+"""
+
+from typing import Any, Dict
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Integer
-from datetime import datetime
 
 
 class Base(DeclarativeBase):
     """
-    SQLAlchemy 2.0の新しいDeclarativeBase構文を使用したベースモデル
-    全データベースモデルの基底クラス
+    全てのデータベースモデルの基底クラス
+
+    - クラス名を小文字に変換し、末尾に「s」を付加したテーブル名を自動生成
+    - モデルインスタンスを辞書形式に変換するユーティリティメソッドを提供
     """
     
-    # デフォルトのテーブル名自動生成
     @declared_attr.directive
     def __tablename__(cls) -> str:
-        # クラス名を小文字に変換し、複数形にしてテーブル名とする
+        """
+        テーブル名を自動生成します（例: クラス名User -> テーブル名users）
+        """
         return f"{cls.__name__.lower()}s"
-    
-    # TypedなCLASSにすることでIDEの補完が効くように
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     
-    # 共通メソッド
-    def dict(self) -> dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
-        モデルインスタンスを辞書に変換
-        
+        モデルインスタンスの各カラムを辞書形式に変換します。
+
         Returns:
-            dict: モデルの属性を表す辞書
+            Dict[str, Any]: カラム名とその値の辞書
         """
-        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+        try:
+            return {column.name: getattr(self, column.name) for column in self.__table__.columns}
+        except Exception as error:
+            # 必要に応じてログ出力などのエラーハンドリングを追加可能
+            raise error

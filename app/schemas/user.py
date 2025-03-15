@@ -1,94 +1,114 @@
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+"""
+app/schemas/user.py
+
+ユーザー関連のPydanticスキーマ定義
+ユーザーのAPI入出力とバリデーションを管理
+"""
+
+from pydantic import EmailStr, Field, HttpUrl, field_validator
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Union
 
-# 共通のユーザーフィールド
-class UserBase(BaseModel):
+# 共通の設定
+from app.schemas.base import BaseSchema
+
+class UserBase(BaseSchema):
     """ユーザー基本情報の共通フィールド"""
-    email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
-    is_active: Optional[bool] = True
-    is_superuser: Optional[bool] = False
+    email: Optional[EmailStr] = Field(None, title="メールアドレス")
+    first_name: Optional[str] = Field(None, title="名")
+    last_name: Optional[str] = Field(None, title="姓")
+    full_name: Optional[str] = Field(None, title="氏名")
+    is_active: Optional[bool] = Field(True, title="アクティブ状態")
+    role_id: Optional[int] = Field(None, title="ロールID")
+    department: Optional[str] = Field(None, title="部署")
+    position: Optional[str] = Field(None, title="役職")
+    phone: Optional[str] = Field(None, title="電話番号")
+    mobile_phone: Optional[str] = Field(None, title="携帯電話番号")
+    employee_id: Optional[str] = Field(None, title="従業員ID")
+    address: Optional[str] = Field(None, title="住所")
+    profile_image_url: Optional[HttpUrl] = Field(None, title="プロフィール画像URL")
+    date_of_birth: Optional[datetime] = Field(None, title="生年月日")
+    hire_date: Optional[datetime] = Field(None, title="入社日")
 
-
-class UserCreate(BaseModel):
+class UserCreate(BaseSchema):
     """ユーザー作成リクエスト"""
-    email: EmailStr
-    password: str = Field(..., min_length=8, max_length=100)
-    full_name: Optional[str] = None
-    is_superuser: Optional[bool] = False
+    email: EmailStr = Field(..., title="メールアドレス")
+    password: str = Field(..., min_length=8, max_length=100, title="パスワード")
+    first_name: Optional[str] = Field(None, title="名")
+    last_name: Optional[str] = Field(None, title="姓")
+    full_name: Optional[str] = Field(None, title="氏名")
+    is_superuser: Optional[bool] = Field(False, title="管理者権限")
+    role_id: Optional[int] = Field(None, title="ロールID")
+    department: Optional[str] = Field(None, title="部署")
+    position: Optional[str] = Field(None, title="役職")
+    employee_id: Optional[str] = Field(None, title="従業員ID")
+    phone: Optional[str] = Field(None, title="電話番号")
+    mobile_phone: Optional[str] = Field(None, title="携帯電話番号")
+    address: Optional[str] = Field(None, title="住所")
+    date_of_birth: Optional[datetime] = Field(None, title="生年月日")
+    hire_date: Optional[datetime] = Field(None, title="入社日")
     
-    # Pydantic v2ではmodel_configを使用
-    model_config = ConfigDict(
-        extra="forbid",  # 未定義のフィールドを許可しない
-    )
+    # 氏名の自動生成
+    @field_validator('full_name', mode='before')
+    @classmethod
+    def generate_full_name(cls, v: Optional[str], info):
+        # full_nameが明示的に設定されていない場合、first_nameとlast_nameから生成
+        if v is None:
+            values = info.data
+            first = values.get('first_name', '')
+            last = values.get('last_name', '')
+            if first or last:
+                return f"{last or ''} {first or ''}".strip()
+        return v
 
-
-class UserUpdate(BaseModel):
+class UserUpdate(BaseSchema):
     """ユーザー更新リクエスト"""
-    email: Optional[EmailStr] = None
-    full_name: Optional[str] = None
-    password: Optional[str] = Field(None, min_length=8, max_length=100)
-    is_active: Optional[bool] = None
-    is_superuser: Optional[bool] = None
-    
-    model_config = ConfigDict(
-        extra="forbid",
-    )
+    email: Optional[EmailStr] = Field(None, title="メールアドレス")
+    first_name: Optional[str] = Field(None, title="名")
+    last_name: Optional[str] = Field(None, title="姓")
+    full_name: Optional[str] = Field(None, title="氏名")
+    password: Optional[str] = Field(None, min_length=8, max_length=100, title="パスワード")
+    is_active: Optional[bool] = Field(None, title="アクティブ状態")
+    is_superuser: Optional[bool] = Field(None, title="管理者権限")
+    role_id: Optional[int] = Field(None, title="ロールID")
+    department: Optional[str] = Field(None, title="部署")
+    position: Optional[str] = Field(None, title="役職")
+    employee_id: Optional[str] = Field(None, title="従業員ID")
+    phone: Optional[str] = Field(None, title="電話番号")
+    mobile_phone: Optional[str] = Field(None, title="携帯電話番号")
+    address: Optional[str] = Field(None, title="住所")
+    profile_image_url: Optional[HttpUrl] = Field(None, title="プロフィール画像URL")
+    date_of_birth: Optional[datetime] = Field(None, title="生年月日")
+    hire_date: Optional[datetime] = Field(None, title="入社日")
 
+    # 氏名の自動生成（UserCreateと同じバリデータ）
+    @field_validator('full_name', mode='before')
+    @classmethod
+    def generate_full_name(cls, v: Optional[str], info):
+        if v is None:
+            values = info.data
+            first = values.get('first_name', '')
+            last = values.get('last_name', '')
+            if first or last:
+                return f"{last or ''} {first or ''}".strip()
+        return v
 
 class UserInDBBase(UserBase):
     """データベース内のユーザー情報の基本クラス"""
-    id: int
-    created_at: datetime
-    updated_at: datetime
-    
-    # Pydantic v2ではmodel_configを使用（from_attributesパラメータを使用）
-    model_config = ConfigDict(
-        from_attributes=True,  # SQLAlchemyモデルからの変換を可能に
-    )
-
+    id: int = Field(..., title="ユーザーID")
+    is_superuser: bool = Field(..., title="管理者権限")
+    created_at: datetime = Field(..., title="作成日時")
+    updated_at: datetime = Field(..., title="更新日時")
+    last_login: Optional[datetime] = Field(None, title="最終ログイン日時")
 
 class User(UserInDBBase):
-    """APIレスポンス用ユーザー情報（機密情報なし）"""
+    """APIレスポンス用ユーザー情報"""
     pass
 
+class UserWithRole(User):
+    """ロール情報を含むユーザー情報"""
+    role: Optional["Role"] = Field(None, title="ユーザーロール")
 
-class UserInDB(UserInDBBase):
-    """データベース内のユーザー情報（パスワードハッシュを含む）"""
-    hashed_password: str
-
-
-# トークン関連スキーマ
-class Token(BaseModel):
-    """アクセストークンスキーマ"""
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-
-class TokenPayload(BaseModel):
-    """トークンペイロードスキーマ"""
-    sub: Optional[str] = None
-    exp: Optional[int] = None
-    type: Optional[str] = None
-
-
-# パスワード操作
-class PasswordReset(BaseModel):
-    """パスワードリセットリクエスト"""
-    email: EmailStr
-    
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-
-
-class PasswordResetConfirm(BaseModel):
-    """パスワードリセット確認"""
-    token: str
-    new_password: str = Field(..., min_length=8, max_length=100)
-    
-    model_config = ConfigDict(
-        extra="forbid",
-    )
+# 循環参照回避のための更新
+from app.schemas.role import Role
+UserWithRole.model_rebuild()

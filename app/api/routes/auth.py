@@ -1,14 +1,20 @@
-from typing import Any
+# app/api/routes/auth.py
+
 from datetime import timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends, status, Body, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from jose import jwt, JWTError
+from jose import JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import UnauthorizedException, ForbiddenException
-from app.core.security import create_access_token, create_refresh_token, decode_token
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+)
 from app.db.session import get_db
 from app.schemas.user import Token, UserCreate, User, TokenPayload
 from app.services.user import UserService
@@ -24,9 +30,11 @@ async def register(
     """
     新規ユーザー登録
 
-    - ユーザー情報のバリデーション (Pydantic v2)
-    - メールアドレスの一意性チェック
-    - パスワードのハッシュ化
+    - Pydantic v2 によるバリデーション
+    - メールアドレスの一意性チェックとパスワードハッシュ化
+
+    ※ User スキーマ側で computed field "full_name" を出力するために、
+       model_config に computed_fields=["full_name"] を設定してください。
     """
     user = await UserService.create(db, user_in)
     return user
@@ -39,9 +47,8 @@ async def login(
 ) -> Any:
     """
     ログイン認証とトークン発行
-    OAuth2の標準フローに対応
 
-    注: OAuth2PasswordRequestFormではusernameフィールドにメールアドレスを指定
+    OAuth2PasswordRequestForm の username フィールドにはメールアドレスを指定してください。
     """
     user = await UserService.authenticate(
         db, email=form_data.username, password=form_data.password
@@ -70,11 +77,11 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db),
 ) -> Any:
     """
-    リフレッシュトークンを使用して新しいアクセストークンを発行
+    リフレッシュトークンを使用して新規アクセストークンを発行
 
-    - リフレッシュトークンの検証
-    - 新しいアクセストークンとリフレッシュトークンの発行
-    - JWTのセキュリティを確保するためのベストプラクティスを採用
+    - refresh_token の検証
+    - ユーザー存在およびアクティブ状態の確認
+    - 新たに「iat」を含むアクセストークンとリフレッシュトークンの発行
     """
     try:
         payload = decode_token(refresh_token)
@@ -91,9 +98,12 @@ async def refresh_token(
     if not user.is_active:
         raise ForbiddenException(detail="Inactive user")
     
+    new_access_token = create_access_token(user.id, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    new_refresh_token = create_refresh_token(user.id, expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+    
     return {
-        "access_token": create_access_token(user.id),
-        "refresh_token": create_refresh_token(user.id),
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
         "token_type": "bearer",
     }
 
@@ -104,23 +114,18 @@ async def password_reset_request(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """
-    パスワードリセットのリクエスト処理
+    パスワードリセットリクエスト
 
-    注: 実装ではユーザーの存在確認のみを行い、実際のメール送信は模擬的に処理
-    本番環境では実際のメール送信機能との連携が必要
+    ユーザー存在の確認のみ行い、実際のメール送信ロジックは未実装です。
     """
     user = await UserService.get_by_email(db, email)
-    
     if user:
         reset_token = create_access_token(
             subject=user.id,
             expires_delta=timedelta(hours=1),
         )
-        # ここでメール送信のロジックを実装する
-        # 例: await send_reset_password_email(email=user.email, token=reset_token)
+        # ここにメール送信ロジックを実装してください
         pass
-    
-    # 204 No Content を Response オブジェクトで明示的に返す
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -133,7 +138,7 @@ async def password_reset(
     """
     パスワードリセットの実行
 
-    トークンを検証し、新しいパスワードに更新
+    トークンを検証し、新しいパスワードに更新します。
     """
     try:
         payload = decode_token(token)
@@ -147,5 +152,4 @@ async def password_reset(
         raise UnauthorizedException(detail="User not found")
     
     await UserService.update(db, user, {"password": new_password})
-    
     return Response(status_code=status.HTTP_204_NO_CONTENT)

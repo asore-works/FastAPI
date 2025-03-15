@@ -1,3 +1,5 @@
+# app/core/security.py
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional, Union
 
@@ -26,13 +28,13 @@ def create_access_token(subject: Union[str, Any], expires_delta: Optional[timede
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    iat = datetime.now(timezone.utc)
     
     # トークンのペイロード
-    to_encode = {"exp": expire, "sub": str(subject), "type": "access"}
+    to_encode = {"exp": expire, "iat": iat, "sub": str(subject), "type": "access"}
     
     # JWTの生成
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(subject: Union[str, Any], expires_delta: Optional[timedelta] = None) -> str:
@@ -50,13 +52,13 @@ def create_refresh_token(subject: Union[str, Any], expires_delta: Optional[timed
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    iat = datetime.now(timezone.utc)
     
     # リフレッシュトークン用のペイロード
-    to_encode = {"exp": expire, "sub": str(subject), "type": "refresh"}
+    to_encode = {"exp": expire, "iat": iat, "sub": str(subject), "type": "refresh"}
     
     # JWTの生成
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

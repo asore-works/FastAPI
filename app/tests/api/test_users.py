@@ -5,20 +5,25 @@ from typing import Dict
 
 from app.core.config import settings
 from app.services.user import UserService
+from app.models.user import User
+
+from datetime import date
 
 
 class TestUsersAPI:
     """ユーザーAPI関連のテストクラス"""
 
     @pytest.mark.asyncio
-    async def test_read_user_me(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]):
+    async def test_read_user_me(
+        self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]
+    ):
         """自分自身のユーザー情報取得テスト"""
         # 自分自身の情報を取得
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/me",
             headers=normal_user_token_headers,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         user_data = response.json()
@@ -35,27 +40,31 @@ class TestUsersAPI:
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/me",
         )
-        
+
         # エラーレスポンス検証
         assert response.status_code == 401
         assert "detail" in response.json()
 
     @pytest.mark.asyncio
-    async def test_update_user_me(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]):
+    async def test_update_user_me(
+        self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]
+    ):
         """自分自身のユーザー情報更新テスト"""
         # 更新データ
         update_data = {
-            "full_name": "Updated My Name",
+            "username": "updated_user",  # usernameを追加
+            "last_name": "Updated",  # full_nameの代わりにlast_nameを使用
+            "first_name": "My Name",  # first_nameを追加
             "password": "newpassword123",
         }
-        
+
         # ユーザー情報を更新
         response = await async_client.put(
             f"{settings.API_V1_PREFIX}/users/me",
             headers=normal_user_token_headers,
             json=update_data,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         user_data = response.json()
@@ -64,21 +73,23 @@ class TestUsersAPI:
         assert "hashed_password" not in user_data
 
     @pytest.mark.asyncio
-    async def test_update_user_me_superuser(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]):
+    async def test_update_user_me_superuser(
+        self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]
+    ):
         """一般ユーザーが自分自身を管理者に昇格させようとするテスト（拒否されるべき）"""
         # 更新データ（管理者フラグあり）
         update_data = {
             "full_name": "Trying to be Admin",
             "is_superuser": True,
         }
-        
+
         # ユーザー情報を更新
         response = await async_client.put(
             f"{settings.API_V1_PREFIX}/users/me",
             headers=normal_user_token_headers,
             json=update_data,
         )
-        
+
         # レスポンス検証（is_superuserが変更されずに更新が成功する）
         assert response.status_code == 200
         user_data = response.json()
@@ -86,14 +97,19 @@ class TestUsersAPI:
         assert user_data["is_superuser"] == False  # 一般ユーザーのままであることを確認
 
     @pytest.mark.asyncio
-    async def test_read_user_by_id(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str], normal_user):
+    async def test_read_user_by_id(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        normal_user,
+    ):
         """特定のユーザー情報取得テスト（管理者）"""
         # 管理者が一般ユーザーの情報を取得
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/{normal_user.id}",
             headers=superuser_token_headers,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         user_data = response.json()
@@ -101,27 +117,34 @@ class TestUsersAPI:
         assert user_data["email"] == normal_user.email
 
     @pytest.mark.asyncio
-    async def test_read_other_user_by_id(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str], superuser):
+    async def test_read_other_user_by_id(
+        self,
+        async_client: AsyncClient,
+        normal_user_token_headers: Dict[str, str],
+        superuser,
+    ):
         """一般ユーザーが他のユーザー情報を取得しようとするテスト（拒否されるべき）"""
         # 一般ユーザーが管理者の情報を取得
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/{superuser.id}",
             headers=normal_user_token_headers,
         )
-        
+
         # エラーレスポンス検証
         assert response.status_code == 403
         assert "detail" in response.json()
 
     @pytest.mark.asyncio
-    async def test_read_users(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str]):
+    async def test_read_users(
+        self, async_client: AsyncClient, superuser_token_headers: Dict[str, str]
+    ):
         """全ユーザー一覧取得テスト（管理者）"""
         # 管理者が全ユーザー一覧を取得
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/",
             headers=superuser_token_headers,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         users = response.json()
@@ -134,20 +157,27 @@ class TestUsersAPI:
             assert "is_active" in user
 
     @pytest.mark.asyncio
-    async def test_read_users_normal_user(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]):
+    async def test_read_users_normal_user(
+        self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]
+    ):
         """一般ユーザーが全ユーザー一覧を取得しようとするテスト（拒否されるべき）"""
         # 一般ユーザーが全ユーザー一覧を取得
         response = await async_client.get(
             f"{settings.API_V1_PREFIX}/users/",
             headers=normal_user_token_headers,
         )
-        
+
         # エラーレスポンス検証
         assert response.status_code == 403
         assert "detail" in response.json()
 
     @pytest.mark.asyncio
-    async def test_create_user_admin(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str], db_session: AsyncSession):
+    async def test_create_user_admin(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        db_session: AsyncSession,
+    ):
         """管理者による新規ユーザー作成テスト"""
         # 新規ユーザーデータ
         user_data = {
@@ -156,28 +186,30 @@ class TestUsersAPI:
             "full_name": "Admin Created User",
             "is_superuser": False,
         }
-        
+
         # 管理者がユーザーを作成
         response = await async_client.post(
             f"{settings.API_V1_PREFIX}/users/",
             headers=superuser_token_headers,
             json=user_data,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 201
         new_user = response.json()
         assert new_user["email"] == user_data["email"]
         assert new_user["full_name"] == user_data["full_name"]
         assert new_user["is_superuser"] == user_data["is_superuser"]
-        
+
         # データベースに登録されたことを確認
         db_user = await UserService.get_by_email(db_session, user_data["email"])
         assert db_user is not None
         assert db_user.email == user_data["email"]
 
     @pytest.mark.asyncio
-    async def test_create_user_normal(self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]):
+    async def test_create_user_normal(
+        self, async_client: AsyncClient, normal_user_token_headers: Dict[str, str]
+    ):
         """一般ユーザーが新規ユーザーを作成しようとするテスト（拒否されるべき）"""
         # 新規ユーザーデータ
         user_data = {
@@ -185,34 +217,39 @@ class TestUsersAPI:
             "password": "normalpassword",
             "full_name": "Normal Created User",
         }
-        
+
         # 一般ユーザーがユーザー作成を試みる
         response = await async_client.post(
             f"{settings.API_V1_PREFIX}/users/",
             headers=normal_user_token_headers,
             json=user_data,
         )
-        
+
         # エラーレスポンス検証
         assert response.status_code == 403
         assert "detail" in response.json()
 
     @pytest.mark.asyncio
-    async def test_update_user_admin(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str], normal_user):
+    async def test_update_user_admin(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        normal_user,
+    ):
         """管理者による他のユーザーの更新テスト"""
         # 更新データ
         update_data = {
             "full_name": "Admin Updated Name",
             "is_active": True,
         }
-        
+
         # 管理者が一般ユーザーを更新
         response = await async_client.put(
             f"{settings.API_V1_PREFIX}/users/{normal_user.id}",
             headers=superuser_token_headers,
             json=update_data,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         updated_user = response.json()
@@ -221,7 +258,12 @@ class TestUsersAPI:
         assert updated_user["is_active"] == update_data["is_active"]
 
     @pytest.mark.asyncio
-    async def test_delete_user_admin(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str], db_session: AsyncSession):
+    async def test_delete_user_admin(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        db_session: AsyncSession,
+    ):
         """管理者によるユーザー削除テスト"""
         # 削除対象のユーザーを作成
         user_data = {
@@ -229,40 +271,120 @@ class TestUsersAPI:
             "password": "deletepassword",
             "full_name": "User To Delete",
         }
-        
+
         create_response = await async_client.post(
             f"{settings.API_V1_PREFIX}/users/",
             headers=superuser_token_headers,
             json=user_data,
         )
-        
+
         created_user = create_response.json()
         user_id = created_user["id"]
-        
+
         # 管理者がユーザーを削除
         response = await async_client.delete(
             f"{settings.API_V1_PREFIX}/users/{user_id}",
             headers=superuser_token_headers,
         )
-        
+
         # レスポンス検証
         assert response.status_code == 200
         deleted_user = response.json()
         assert deleted_user["id"] == user_id
-        
+
         # データベースから削除されたことを確認
         db_user = await UserService.get(db_session, user_id)
         assert db_user is None
 
     @pytest.mark.asyncio
-    async def test_delete_self_admin(self, async_client: AsyncClient, superuser_token_headers: Dict[str, str], superuser):
+    async def test_delete_self_admin(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        superuser,
+    ):
         """管理者が自分自身を削除しようとするテスト（拒否されるべき）"""
         # 管理者が自分自身を削除
         response = await async_client.delete(
             f"{settings.API_V1_PREFIX}/users/{superuser.id}",
             headers=superuser_token_headers,
         )
-        
+
         # エラーレスポンス検証
         assert response.status_code == 400
         assert "detail" in response.json()
+
+
+    @pytest.mark.asyncio
+    async def test_create_user_with_extended_fields(
+        self,
+        async_client: AsyncClient,
+        superuser_token_headers: Dict[str, str],
+        db_session: AsyncSession,
+        setup_database,
+    ):
+        """管理者による拡張フィールド付きの新規ユーザー作成テスト"""
+        # 新規ユーザーデータ（拡張フィールドあり）
+        birth_date_str = "1992-08-15"  # ISO形式の日付文字列
+        user_data = {
+            "email": "extended_user@example.com",
+            "username": "extended_user",
+            "password": "extended_password",
+            "last_name": "拡張",
+            "first_name": "ユーザー",
+            "birth_date": birth_date_str,
+            "phone_number": "070-1234-5678",
+        }
+
+        # 管理者がユーザーを作成
+        response = await async_client.post(
+            f"{settings.API_V1_PREFIX}/users/",
+            headers=superuser_token_headers,
+            json=user_data,
+        )
+
+        # レスポンス検証
+        assert response.status_code == 201
+        created_user = response.json()
+        assert created_user["email"] == user_data["email"]
+        assert created_user["username"] == user_data["username"]
+        assert created_user["last_name"] == user_data["last_name"]
+        assert created_user["first_name"] == user_data["first_name"]
+        assert created_user["birth_date"] == birth_date_str
+        assert created_user["phone_number"] == user_data["phone_number"]
+
+
+    @pytest.mark.asyncio
+    async def test_update_user_me_with_extended_fields(
+        self,
+        async_client: AsyncClient,
+        normal_user_token_headers: Dict[str, str],
+        normal_user: User,
+        db_session: AsyncSession,
+        setup_database,
+    ):
+        """自分自身のユーザー情報更新テスト（拡張フィールド）"""
+        # 更新データ
+        update_data = {
+            "username": "updated_me",
+            "last_name": "私の",
+            "first_name": "更新",
+            "birth_date": "1995-12-25",
+            "phone_number": "080-5555-6666",
+        }
+
+        # ユーザー情報を更新
+        response = await async_client.put(
+            f"{settings.API_V1_PREFIX}/users/me",
+            headers=normal_user_token_headers,
+            json=update_data,
+        )
+
+        # レスポンス検証
+        assert response.status_code == 200
+        updated_user = response.json()
+        assert updated_user["username"] == update_data["username"]
+        assert updated_user["last_name"] == update_data["last_name"]
+        assert updated_user["first_name"] == update_data["first_name"]
+        assert updated_user["birth_date"] == update_data["birth_date"]
+        assert updated_user["phone_number"] == update_data["phone_number"]

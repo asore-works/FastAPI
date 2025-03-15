@@ -1,16 +1,19 @@
-from typing import AsyncGenerator
+"""
+ファイル: app/db/session.py
+説明: 非同期SQLAlchemyエンジンとセッションファクトリの設定を行います。
+      FastAPIの依存性注入で利用する非同期データベースセッション取得関数を提供します。
+"""
 
+from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-# 非同期エンジンの作成
-# SQLAlchemy 2.0の新しいAPI形式を使用
+# SQLAlchemy 2.0のAPIを利用して非同期エンジンを作成
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.DEBUG,
-    # 接続プールの設定
     pool_size=5,
     max_overflow=10,
     pool_timeout=30,
@@ -18,8 +21,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-# 非同期セッションの設定
-# expire_on_commitをFalseにして、commit後もオブジェクトにアクセスできるように
+# 非同期セッションのファクトリを設定
 AsyncSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
@@ -31,18 +33,14 @@ AsyncSessionLocal = sessionmaker(
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """
-    FastAPIのDependency Injectionで使用するための非同期DBセッション取得関数
-    
-    SQLAlchemy 2.0の非同期機能を活用した依存性
-    
+    FastAPIで使用する非同期データベースセッションを提供する依存性関数。
+
     Yields:
-        AsyncSession: 非同期DBセッション
+        AsyncSession: リクエスト処理で使用するDBセッション
     """
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            # 明示的なコミットは呼び出し側の責任
         except Exception:
-            # エラー発生時は自動的にロールバック
             await session.rollback()
             raise
