@@ -15,7 +15,7 @@ from app.db.base_class import Base
 # 型ヒントのための条件付きインポート
 if TYPE_CHECKING:
     from app.models.role import Role
-
+    # UserLocation は未採用のため削除
 
 class User(Base):
     """ユーザーモデル - SQLAlchemy 2.0の型指定マッピング"""
@@ -108,16 +108,14 @@ class User(Base):
     # リレーションシップ
     if TYPE_CHECKING:
         role: Mapped["Role"]
-        locations: Mapped[List["UserLocation"]]
+        # UserLocation 関連は現時点で採用予定がないため削除
     else:
         role = relationship(
             "Role",
             back_populates="users",
             lazy="joined",  # N+1問題回避のためJOINEDローディング
         )
-        locations = relationship(
-            "UserLocation", back_populates="user", cascade="all, delete-orphan"
-        )
+        # UserLocation 関連は削除
 
     def __repr__(self) -> str:
         return f"<User {self.email}>"

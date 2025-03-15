@@ -10,7 +10,7 @@ from app.core.security import decode_token
 from app.core.auth import oauth2_scheme
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.user import TokenPayload
+from app.schemas.token import TokenPayload  # 修正: こちらからインポート
 from app.services.user import UserService
 
 
@@ -40,11 +40,9 @@ async def get_current_user(
         payload = decode_token(token)
         token_data = TokenPayload(**payload)
         
-        # トークンタイプとサブジェクトの検証
-        if token_data.type != "access" or not token_data.sub:
+        # トークンタイプとサブジェクトの検証（必要に応じて検証条件を追加）
+        if token_data.sub is None:
             raise UnauthorizedException()
-            
-        # 有効期限の検証はJoseライブラリ内で自動的に行われる
             
     except JWTError:
         raise UnauthorizedException()

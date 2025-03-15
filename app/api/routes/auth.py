@@ -16,7 +16,8 @@ from app.core.security import (
     decode_token,
 )
 from app.db.session import get_db
-from app.schemas.user import Token, UserCreate, User, TokenPayload
+from app.schemas.token import Token, TokenPayload
+from app.schemas.user import UserCreate, User
 from app.services.user import UserService
 
 router = APIRouter()
